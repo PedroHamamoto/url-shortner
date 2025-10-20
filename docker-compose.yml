@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: shortifier-postgres
+    environment:
+      POSTGRES_DB: shortifier
+      POSTGRES_USER: shortifier_user
+      POSTGRES_PASSWORD: shortifier_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shortifier_user -d shortifier"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local

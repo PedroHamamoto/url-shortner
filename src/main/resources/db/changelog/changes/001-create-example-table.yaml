@@ -1,0 +1,46 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-example-table
+      author: shortifier
+      changes:
+        - createTable:
+            tableName: url_mapping
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: short_code
+                  type: VARCHAR(10)
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: original_url
+                  type: VARCHAR(2048)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: TIMESTAMP
+              - column:
+                  name: access_count
+                  type: BIGINT
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: idx_url_mapping_short_code
+            tableName: url_mapping
+            columns:
+              - column:
+                  name: short_code
