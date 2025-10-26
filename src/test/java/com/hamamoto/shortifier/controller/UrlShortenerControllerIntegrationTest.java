@@ -177,7 +177,7 @@ class UrlShortenerControllerIntegrationTest {
         var shortCode = objectMapper.readTree(createResponse).get("shortCode").asText();
 
         // When/Then - redirect to original URL
-        mockMvc.perform(get("/api/" + shortCode))
+        mockMvc.perform(get("/" + shortCode))
                 .andExpect(status().isFound())
                 .andExpect(redirectedUrl("https://example.com/original"));
     }
@@ -185,7 +185,7 @@ class UrlShortenerControllerIntegrationTest {
     @Test
     void redirect_withNonExistentShortCode_shouldReturn404() throws Exception {
         // When/Then
-        mockMvc.perform(get("/api/xxxxx"))
+        mockMvc.perform(get("/xxxxx"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.message").value(containsString("Short URL not found")))
@@ -208,7 +208,7 @@ class UrlShortenerControllerIntegrationTest {
         var shortCode = objectMapper.readTree(createResponse).get("shortCode").asText();
 
         // When/Then - should return 410 Gone
-        mockMvc.perform(get("/api/" + shortCode))
+        mockMvc.perform(get("/" + shortCode))
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.status").value(410))
                 .andExpect(jsonPath("$.message").value(containsString("Short URL has expired")))
@@ -231,7 +231,7 @@ class UrlShortenerControllerIntegrationTest {
         var shortCode = objectMapper.readTree(createResponse).get("shortCode").asText();
 
         // When/Then - should redirect normally
-        mockMvc.perform(get("/api/" + shortCode))
+        mockMvc.perform(get("/" + shortCode))
                 .andExpect(status().isFound())
                 .andExpect(redirectedUrl("https://example.com/future"));
     }
