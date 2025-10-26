@@ -3,6 +3,8 @@ package com.hamamoto.shortifier.service;
 import com.hamamoto.shortifier.dto.ShortenRequest;
 import com.hamamoto.shortifier.dto.ShortenResponse;
 import com.hamamoto.shortifier.entity.UrlMapping;
+import com.hamamoto.shortifier.exception.ShortUrlExpiredException;
+import com.hamamoto.shortifier.exception.ShortUrlNotFoundException;
 import com.hamamoto.shortifier.repository.UrlMappingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -68,5 +71,17 @@ public class UrlShortenerService {
             sb.append(BASE62_CHARS.charAt(index));
         }
         return sb.toString();
+    }
+
+    public String getOriginalUrl(String shortCode) {
+        var urlMapping = urlMappingRepository.findByShortCode(shortCode)
+                .orElseThrow(() -> new ShortUrlNotFoundException(shortCode));
+
+        if (urlMapping.getExpiresAt() != null && urlMapping.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new ShortUrlExpiredException(shortCode);
+        }
+
+        log.info("Redirecting short code {} to {}", shortCode, urlMapping.getOriginalUrl());
+        return urlMapping.getOriginalUrl();
     }
 }

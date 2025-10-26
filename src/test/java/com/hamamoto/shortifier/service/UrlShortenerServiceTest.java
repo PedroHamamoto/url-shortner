@@ -3,6 +3,8 @@ package com.hamamoto.shortifier.service;
 import com.hamamoto.shortifier.dto.ShortenRequest;
 import com.hamamoto.shortifier.dto.ShortenResponse;
 import com.hamamoto.shortifier.entity.UrlMapping;
+import com.hamamoto.shortifier.exception.ShortUrlExpiredException;
+import com.hamamoto.shortifier.exception.ShortUrlNotFoundException;
 import com.hamamoto.shortifier.repository.UrlMappingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -156,5 +159,104 @@ class UrlShortenerServiceTest {
 
         // Then
         assertThat(response.getShortCode()).hasSize(5);
+    }
+
+    @Test
+    void getOriginalUrl_shouldReturnUrl() {
+        // Given
+        var shortCode = "abc12";
+        var urlMapping = UrlMapping.builder()
+                .id(1L)
+                .shortCode(shortCode)
+                .originalUrl("https://example.com/test")
+                .createdAt(LocalDateTime.now())
+                .accessCount(0L)
+                .build();
+
+        when(urlMappingRepository.findByShortCode(shortCode)).thenReturn(Optional.of(urlMapping));
+
+        // When
+        var originalUrl = urlShortenerService.getOriginalUrl(shortCode);
+
+        // Then
+        assertThat(originalUrl).isEqualTo("https://example.com/test");
+        verify(urlMappingRepository, times(1)).findByShortCode(shortCode);
+    }
+
+    @Test
+    void getOriginalUrl_shouldThrowNotFoundException() {
+        // Given
+        var shortCode = "xyz99";
+        when(urlMappingRepository.findByShortCode(shortCode)).thenReturn(Optional.empty());
+
+        // When/Then
+        assertThatThrownBy(() -> urlShortenerService.getOriginalUrl(shortCode))
+                .isInstanceOf(ShortUrlNotFoundException.class)
+                .hasMessageContaining("Short URL not found: xyz99");
+    }
+
+    @Test
+    void getOriginalUrl_shouldThrowExpiredException() {
+        // Given
+        var shortCode = "abc12";
+        var urlMapping = UrlMapping.builder()
+                .id(1L)
+                .shortCode(shortCode)
+                .originalUrl("https://example.com/test")
+                .createdAt(LocalDateTime.now().minusDays(10))
+                .expiresAt(LocalDateTime.now().minusDays(1))
+                .accessCount(0L)
+                .build();
+
+        when(urlMappingRepository.findByShortCode(shortCode)).thenReturn(Optional.of(urlMapping));
+
+        // When/Then
+        assertThatThrownBy(() -> urlShortenerService.getOriginalUrl(shortCode))
+                .isInstanceOf(ShortUrlExpiredException.class)
+                .hasMessageContaining("Short URL has expired: abc12");
+    }
+
+    @Test
+    void getOriginalUrl_withNullExpiresAt_shouldReturnUrl() {
+        // Given
+        var shortCode = "abc12";
+        var urlMapping = UrlMapping.builder()
+                .id(1L)
+                .shortCode(shortCode)
+                .originalUrl("https://example.com/test")
+                .createdAt(LocalDateTime.now())
+                .expiresAt(null)
+                .accessCount(0L)
+                .build();
+
+        when(urlMappingRepository.findByShortCode(shortCode)).thenReturn(Optional.of(urlMapping));
+
+        // When
+        var originalUrl = urlShortenerService.getOriginalUrl(shortCode);
+
+        // Then
+        assertThat(originalUrl).isEqualTo("https://example.com/test");
+    }
+
+    @Test
+    void getOriginalUrl_withFutureExpiresAt_shouldReturnUrl() {
+        // Given
+        var shortCode = "abc12";
+        var urlMapping = UrlMapping.builder()
+                .id(1L)
+                .shortCode(shortCode)
+                .originalUrl("https://example.com/test")
+                .createdAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .accessCount(0L)
+                .build();
+
+        when(urlMappingRepository.findByShortCode(shortCode)).thenReturn(Optional.of(urlMapping));
+
+        // When
+        var originalUrl = urlShortenerService.getOriginalUrl(shortCode);
+
+        // Then
+        assertThat(originalUrl).isEqualTo("https://example.com/test");
     }
 }

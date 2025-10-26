@@ -37,6 +37,30 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(errorResponse);
     }
 
+    @ExceptionHandler(ShortUrlNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleShortUrlNotFoundException(ShortUrlNotFoundException ex) {
+        var errorResponse = ErrorResponse.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        log.warn("Short URL not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    @ExceptionHandler(ShortUrlExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleShortUrlExpiredException(ShortUrlExpiredException ex) {
+        var errorResponse = ErrorResponse.builder()
+                .status(HttpStatus.GONE.value())
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        log.warn("Short URL expired: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.GONE).body(errorResponse);
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
         var errorResponse = ErrorResponse.builder()
