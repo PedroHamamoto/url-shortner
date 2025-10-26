@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
-      id: 001-create-example-table
-      author: shortifier
+      id: 001-create-url_mapping-table
+      author: PedroHamamoto
       changes:
         - createTable:
             tableName: url_mapping
@@ -14,7 +14,7 @@ databaseChangeLog:
                     nullable: false
               - column:
                   name: short_code
-                  type: VARCHAR(10)
+                  type: VARCHAR(5)
                   constraints:
                     unique: true
                     nullable: false
