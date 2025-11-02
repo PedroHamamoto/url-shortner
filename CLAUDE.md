@@ -92,3 +92,5 @@ Lombok is configured as both `compileOnly` and `annotationProcessor` dependencie
 
 ### Database Configuration
 PostgreSQL connection details should be configured in `application.properties` or environment variables for different environments (dev, test, prod).
+- Use var on variable declarations whenever is possible
+- Don't add comments to methods unless asked

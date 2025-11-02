@@ -1,5 +1,6 @@
 package com.hamamoto.shortifier.service;
 
+import com.hamamoto.shortifier.component.ShortCodeGenerator;
 import com.hamamoto.shortifier.dto.ShortenRequest;
 import com.hamamoto.shortifier.dto.ShortenResponse;
 import com.hamamoto.shortifier.entity.UrlMapping;
@@ -20,6 +21,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -28,6 +30,12 @@ class UrlShortenerServiceTest {
 
     @Mock
     private UrlMappingRepository urlMappingRepository;
+
+    @Mock
+    private RedisCounterService redisCounterService;
+
+    @Mock
+    private ShortCodeGenerator shortCodeGenerator;
 
     @InjectMocks
     private UrlShortenerService urlShortenerService;
@@ -50,7 +58,8 @@ class UrlShortenerServiceTest {
                 .accessCount(0L)
                 .build();
 
-        when(urlMappingRepository.existsByShortCode(anyString())).thenReturn(false);
+        when(redisCounterService.getNextId()).thenReturn(1L);
+        when(shortCodeGenerator.generate(1L)).thenReturn("abc12");
         when(urlMappingRepository.save(any(UrlMapping.class))).thenReturn(savedMapping);
 
         // When
@@ -63,6 +72,8 @@ class UrlShortenerServiceTest {
         assertThat(response.getShortUrl()).isEqualTo("http://localhost:8080/abc12");
         assertThat(response.getCreatedAt()).isNotNull();
 
+        verify(redisCounterService, times(1)).getNextId();
+        verify(shortCodeGenerator, times(1)).generate(1L);
         verify(urlMappingRepository, times(1)).save(any(UrlMapping.class));
     }
 
@@ -81,7 +92,8 @@ class UrlShortenerServiceTest {
                 .accessCount(0L)
                 .build();
 
-        when(urlMappingRepository.existsByShortCode(anyString())).thenReturn(false);
+        when(redisCounterService.getNextId()).thenReturn(2L);
+        when(shortCodeGenerator.generate(2L)).thenReturn("xyz99");
         when(urlMappingRepository.save(any(UrlMapping.class))).thenReturn(savedMapping);
 
         // When
@@ -90,75 +102,48 @@ class UrlShortenerServiceTest {
         // Then
         assertThat(response).isNotNull();
         assertThat(response.getExpiresAt()).isEqualTo(expiresAt);
+        verify(redisCounterService, times(1)).getNextId();
+        verify(shortCodeGenerator, times(1)).generate(2L);
     }
 
     @Test
-    void shortenUrl_shouldRetryOnCollision() {
+    void shortenUrl_multipleCalls_shouldGenerateDifferentShortCodes() {
         // Given
         var request = new ShortenRequest("https://example.com/test", null);
 
-        var savedMapping = UrlMapping.builder()
+        var savedMapping1 = UrlMapping.builder()
                 .id(1L)
-                .shortCode("valid")
+                .shortCode("code1")
                 .originalUrl(request.getUrl())
                 .createdAt(LocalDateTime.now())
                 .accessCount(0L)
                 .build();
 
-        // Simulate 3 collisions, then success
-        when(urlMappingRepository.existsByShortCode(anyString()))
-                .thenReturn(true)
-                .thenReturn(true)
-                .thenReturn(true)
-                .thenReturn(false);
-        when(urlMappingRepository.save(any(UrlMapping.class))).thenReturn(savedMapping);
-
-        // When
-        var response = urlShortenerService.shortenUrl(request);
-
-        // Then
-        assertThat(response).isNotNull();
-        verify(urlMappingRepository, times(4)).existsByShortCode(anyString());
-        verify(urlMappingRepository, times(1)).save(any(UrlMapping.class));
-    }
-
-    @Test
-    void shortenUrl_shouldThrowExceptionAfterMaxRetries() {
-        // Given
-        var request = new ShortenRequest("https://example.com/test", null);
-
-        // Simulate all collisions
-        when(urlMappingRepository.existsByShortCode(anyString())).thenReturn(true);
-
-        // When/Then
-        assertThatThrownBy(() -> urlShortenerService.shortenUrl(request))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Failed to generate unique short code");
-
-        verify(urlMappingRepository, never()).save(any(UrlMapping.class));
-    }
-
-    @Test
-    void generateShortCode_shouldBeExactly5Characters() {
-        // Given
-        var request = new ShortenRequest("https://example.com/test", null);
-
-        var savedMapping = UrlMapping.builder()
-                .id(1L)
-                .shortCode("a1B2c")
+        var savedMapping2 = UrlMapping.builder()
+                .id(2L)
+                .shortCode("code2")
                 .originalUrl(request.getUrl())
                 .createdAt(LocalDateTime.now())
                 .accessCount(0L)
                 .build();
 
-        when(urlMappingRepository.existsByShortCode(anyString())).thenReturn(false);
-        when(urlMappingRepository.save(any(UrlMapping.class))).thenReturn(savedMapping);
+        when(redisCounterService.getNextId())
+                .thenReturn(1L)
+                .thenReturn(2L);
+        when(shortCodeGenerator.generate(1L)).thenReturn("code1");
+        when(shortCodeGenerator.generate(2L)).thenReturn("code2");
+        when(urlMappingRepository.save(any(UrlMapping.class)))
+                .thenReturn(savedMapping1)
+                .thenReturn(savedMapping2);
 
         // When
-        var response = urlShortenerService.shortenUrl(request);
+        var response1 = urlShortenerService.shortenUrl(request);
+        var response2 = urlShortenerService.shortenUrl(request);
 
         // Then
-        assertThat(response.getShortCode()).hasSize(5);
+        assertThat(response1.getShortCode()).isNotEqualTo(response2.getShortCode());
+        assertThat(response1.getShortCode()).isEqualTo("code1");
+        assertThat(response2.getShortCode()).isEqualTo("code2");
     }
 
     @Test

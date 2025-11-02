@@ -1,5 +1,6 @@
 package com.hamamoto.shortifier.service;
 
+import com.hamamoto.shortifier.component.ShortCodeGenerator;
 import com.hamamoto.shortifier.dto.ShortenRequest;
 import com.hamamoto.shortifier.dto.ShortenResponse;
 import com.hamamoto.shortifier.entity.UrlMapping;
@@ -12,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 
 @Service
@@ -20,12 +20,9 @@ import java.time.LocalDateTime;
 @Slf4j
 public class UrlShortenerService {
 
-    private static final String BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    private static final int SHORT_CODE_LENGTH = 5;
-    private static final int MAX_RETRIES = 10;
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final UrlMappingRepository urlMappingRepository;
+    private final RedisCounterService redisCounterService;
+    private final ShortCodeGenerator shortCodeGenerator;
 
     @Value("${shortifier.base-url:http://localhost:8080}")
     private String baseUrl;
@@ -54,23 +51,10 @@ public class UrlShortenerService {
     }
 
     private String generateUniqueShortCode() {
-        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            var shortCode = generateRandomShortCode();
-            if (!urlMappingRepository.existsByShortCode(shortCode)) {
-                return shortCode;
-            }
-            log.warn("Short code collision detected: {}. Retry attempt {}/{}", shortCode, attempt + 1, MAX_RETRIES);
-        }
-        throw new IllegalStateException("Failed to generate unique short code after " + MAX_RETRIES + " attempts");
-    }
-
-    private String generateRandomShortCode() {
-        var sb = new StringBuilder(SHORT_CODE_LENGTH);
-        for (int i = 0; i < SHORT_CODE_LENGTH; i++) {
-            var index = RANDOM.nextInt(BASE62_CHARS.length());
-            sb.append(BASE62_CHARS.charAt(index));
-        }
-        return sb.toString();
+        var nextId = redisCounterService.getNextId();
+        var shortCode = shortCodeGenerator.generate(nextId);
+        log.debug("Generated short code: {} from ID: {}", shortCode, nextId);
+        return shortCode;
     }
 
     public String getOriginalUrl(String shortCode) {
